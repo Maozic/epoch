@@ -3479,7 +3479,7 @@
       "type" : "object",
       "properties" : {
         "id" : {
-          "type" : "string"
+          "$ref" : "#/definitions/EncodedHash"
         },
         "query_format" : {
           "type" : "string"
@@ -3498,7 +3498,7 @@
       "example" : {
         "expires" : 6,
         "response_format" : "response_format",
-        "id" : "id",
+        "id" : { },
         "query_fee" : 0,
         "query_format" : "query_format"
       }
@@ -3513,10 +3513,10 @@
       "type" : "object",
       "properties" : {
         "id" : {
-          "type" : "string"
+          "$ref" : "#/definitions/EncodedHash"
         },
-        "sender" : {
-          "type" : "string"
+        "sender_id" : {
+          "$ref" : "#/definitions/EncodedHash"
         },
         "sender_nonce" : {
           "type" : "integer",
@@ -3524,7 +3524,7 @@
           "minimum" : 0
         },
         "oracle_id" : {
-          "type" : "string"
+          "$ref" : "#/definitions/EncodedHash"
         },
         "query" : {
           "type" : "string"
@@ -3546,17 +3546,17 @@
       },
       "example" : {
         "expires" : 6,
-        "oracle_id" : "oracle_id",
+        "oracle_id" : null,
         "response_ttl" : {
           "type" : "delta",
           "value" : 1
         },
-        "sender" : "sender",
         "response" : "response",
         "query" : "query",
         "fee" : 5,
         "sender_nonce" : 0,
-        "id" : "id"
+        "id" : { },
+        "sender_id" : null
       }
     },
     "OracleQuestion" : {
@@ -3590,30 +3590,30 @@
       "example" : {
         "oracle_queries" : [ {
           "expires" : 6,
-          "oracle_id" : "oracle_id",
+          "oracle_id" : null,
           "response_ttl" : {
             "type" : "delta",
             "value" : 1
           },
-          "sender" : "sender",
           "response" : "response",
           "query" : "query",
           "fee" : 5,
           "sender_nonce" : 0,
-          "id" : "id"
+          "id" : { },
+          "sender_id" : null
         }, {
           "expires" : 6,
-          "oracle_id" : "oracle_id",
+          "oracle_id" : null,
           "response_ttl" : {
             "type" : "delta",
             "value" : 1
           },
-          "sender" : "sender",
           "response" : "response",
           "query" : "query",
           "fee" : 5,
           "sender_nonce" : 0,
-          "id" : "id"
+          "id" : { },
+          "sender_id" : null
         } ]
       }
     },
@@ -3689,7 +3689,7 @@
         "oracle_ttl" : {
           "$ref" : "#/definitions/TTL"
         },
-        "account" : {
+        "account_id" : {
           "$ref" : "#/definitions/EncodedHash"
         },
         "nonce" : {
@@ -3707,6 +3707,7 @@
       },
       "example" : {
         "response_format" : "response_format",
+        "account_id" : { },
         "fee" : 1,
         "oracle_ttl" : {
           "type" : "delta",
@@ -3715,8 +3716,7 @@
         "query_fee" : 0,
         "nonce" : 6,
         "ttl" : 5,
-        "query_format" : "query_format",
-        "account" : { }
+        "query_format" : "query_format"
       }
     },
     "OracleRegisterResponse" : {
@@ -3745,7 +3745,7 @@
         "oracle_ttl" : {
           "$ref" : "#/definitions/TTL"
         },
-        "oracle" : {
+        "oracle_id" : {
           "$ref" : "#/definitions/EncodedHash"
         },
         "nonce" : {
@@ -3758,7 +3758,7 @@
         }
       },
       "example" : {
-        "oracle" : { },
+        "oracle_id" : { },
         "fee" : 0,
         "oracle_ttl" : {
           "type" : "delta",
@@ -3770,10 +3770,10 @@
     },
     "OracleQueryTx" : {
       "type" : "object",
-      "required" : [ "fee", "oracle_pubkey", "query", "query_fee", "query_ttl", "response_ttl" ],
+      "required" : [ "fee", "oracle_id", "query", "query_fee", "query_ttl", "response_ttl" ],
       "properties" : {
-        "oracle_pubkey" : {
-          "type" : "string"
+        "oracle_id" : {
+          "$ref" : "#/definitions/EncodedHash"
         },
         "query" : {
           "type" : "string"
@@ -3796,7 +3796,7 @@
           "type" : "integer",
           "format" : "int64"
         },
-        "sender" : {
+        "sender_id" : {
           "$ref" : "#/definitions/EncodedHash"
         },
         "nonce" : {
@@ -3806,11 +3806,11 @@
         }
       },
       "example" : {
+        "oracle_id" : { },
         "response_ttl" : {
           "type" : "delta",
           "value" : 1
         },
-        "sender" : { },
         "query" : "query",
         "query_ttl" : {
           "type" : "delta",
@@ -3820,7 +3820,7 @@
         "query_fee" : 0,
         "ttl" : 5,
         "nonce" : 5,
-        "oracle_pubkey" : "oracle_pubkey"
+        "sender_id" : null
       }
     },
     "OracleResponseTx" : {
@@ -3841,7 +3841,7 @@
           "type" : "integer",
           "format" : "int64"
         },
-        "oracle" : {
+        "oracle_id" : {
           "$ref" : "#/definitions/EncodedHash"
         },
         "nonce" : {
@@ -3851,7 +3851,7 @@
         }
       },
       "example" : {
-        "oracle" : null,
+        "oracle_id" : null,
         "query_id" : { },
         "response" : "response",
         "fee" : 0,

@@ -114,7 +114,7 @@ create_message_from_event(chain_tx, TxHash) ->
     {ok, create_message(chain, tx_chain, Payload)};
 create_message_from_event(oracle_query_tx, OracleQueryTx) ->
     %% TODO: Add TTL of the query to payload
-    Sender = aeo_query_tx:sender(OracleQueryTx),
+    Sender = aeo_query_tx:sender_id(OracleQueryTx),
     QId    = aeo_query_tx:query_id(OracleQueryTx),
     Payload =
         [{sender,   aec_base58c:encode(id_hash, Sender)},
