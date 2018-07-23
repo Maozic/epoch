@@ -3625,9 +3625,9 @@
     },
     "SpendTx" : {
       "type" : "object",
-      "required" : [ "amount", "fee", "payload", "recipient_pubkey" ],
+      "required" : [ "amount", "fee", "payload", "recipient_id" ],
       "properties" : {
-        "recipient_pubkey" : {
+        "recipient_id" : {
           "$ref" : "#/definitions/EncodedHash"
         },
         "amount" : {
@@ -3643,7 +3643,7 @@
           "type" : "integer",
           "format" : "int64"
         },
-        "sender" : {
+        "sender_id" : {
           "$ref" : "#/definitions/EncodedHash"
         },
         "nonce" : {
@@ -3656,12 +3656,12 @@
       },
       "example" : {
         "amount" : 0,
-        "sender" : null,
         "payload" : "payload",
         "fee" : 6,
-        "recipient_pubkey" : { },
         "ttl" : 1,
-        "nonce" : 5
+        "nonce" : 5,
+        "sender_id" : null,
+        "recipient_id" : { }
       }
     },
     "SpendTxResponse" : {

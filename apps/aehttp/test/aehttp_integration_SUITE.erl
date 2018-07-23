@@ -820,8 +820,8 @@ init_per_group(post_tx_to_mempool = Group, Config) ->
     aecore_suite_utils:mine_key_blocks(Node, aecore_suite_utils:latest_fork_height()),
     {ok, [KeyBlock]} = aecore_suite_utils:mine_key_blocks(Node, 1),
     true = aec_blocks:is_key_block(KeyBlock),
-    [{account_pubkey, aec_base58c:encode(account_pubkey, Pubkey)},
-     {recipient_pubkey, aec_base58c:encode(account_pubkey, random_hash())},
+    [{sender_id, aec_base58c:encode(account_pubkey, Pubkey)},
+     {recipient_id, aec_base58c:encode(account_pubkey, random_hash())},
      {amount, 1},
      {fee, 1},
      {payload, <<"foo">>} | Config1];
@@ -1502,11 +1502,11 @@ get_transaction_info_by_hash(_Config) ->
 
 post_spend_tx(Config) ->
     TxArgs =
-        #{sender           => ?config(account_pubkey, Config),
-          recipient_pubkey => ?config(recipient_pubkey, Config),
-          amount           => ?config(amount, Config),
-          fee              => ?config(fee, Config),
-          payload          => ?config(payload, Config)},
+        #{sender_id    => ?config(sender_id, Config),
+          recipient_id => ?config(recipient_id, Config),
+          amount       => ?config(amount, Config),
+          fee          => ?config(fee, Config),
+          payload      => ?config(payload, Config)},
     {TxHash, Tx} = prepare_tx(spend_tx, TxArgs),
     ok = post_tx(TxHash, Tx),
     ok.
@@ -2818,25 +2818,24 @@ spend_transaction(_Config) ->
     {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
     {ok, MinerPubkey} = aec_base58c:safe_decode(account_pubkey, MinerAddress),
     RandAddress = random_hash(),
-    Encoded = #{sender => MinerAddress,
-                recipient_pubkey => aec_base58c:encode(account_pubkey,
-                                                       RandAddress),
+    Encoded = #{sender_id => MinerAddress,
+                recipient_id => aec_base58c:encode(account_pubkey, RandAddress),
                 amount => 2,
                 fee => 1,
                 ttl => 43,
                 payload => <<"hejsan svejsan">>},
     Decoded = maps:merge(Encoded,
-                        #{sender => aec_id:create(account, MinerPubkey),
-                          recipient => aec_id:create(account, RandAddress)}),
+                        #{sender_id => aec_id:create(account, MinerPubkey),
+                          recipient_id => aec_id:create(account, RandAddress)}),
     {ok, T} = unsigned_tx_positive_test(Decoded, Encoded,
                                   fun get_spend/1,
                                   fun aec_spend_tx:new/1, MinerPubkey),
     {spend_tx, SpendTx} = aetx:specialize_type(T),
     <<"hejsan svejsan">> = aec_spend_tx:payload(SpendTx),
 
-    test_invalid_hash({account_pubkey, MinerPubkey}, sender, Encoded, fun get_spend/1),
-    test_invalid_hash({account_pubkey, MinerPubkey}, {recipient_pubkey, recipient}, Encoded, fun get_spend/1),
-    test_missing_address(sender, Encoded, fun get_spend/1),
+    test_invalid_hash({account_pubkey, MinerPubkey}, sender_id, Encoded, fun get_spend/1),
+    test_invalid_hash({account_pubkey, MinerPubkey}, {recipient_id, recipient_id}, Encoded, fun get_spend/1),
+    test_missing_address(sender_id, Encoded, fun get_spend/1),
     ok.
 
 %% tests the following
@@ -2845,9 +2844,8 @@ unknown_atom_in_spend_tx(_Config) ->
     {ok, 200, _} = get_balance_at_top(),
     {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
     RandAddress = random_hash(),
-    Encoded = #{sender => MinerAddress,
-                recipient_pubkey => aec_base58c:encode(account_pubkey,
-                                                       RandAddress),
+    Encoded = #{sender_id => MinerAddress,
+                recipient_id => aec_base58c:encode(account_pubkey, RandAddress),
                 amount => 2,
                 fee => 1,
                 %% this tests relies on this being an atom unknown to the VM
@@ -2903,9 +2901,8 @@ get_transaction(_Config) ->
 
     %% test in mempool
     RandAddress = random_hash(),
-    Encoded = #{sender => EncodedPubKey,
-                recipient_pubkey => aec_base58c:encode(account_pubkey,
-                                                       RandAddress),
+    Encoded = #{sender_id => EncodedPubKey,
+                recipient_id => aec_base58c:encode(account_pubkey, RandAddress),
                 amount => 2,
                 fee => 1,
                 payload => <<"foo">>},
@@ -3001,8 +2998,8 @@ post_correct_tx(_Config) ->
     {PubKey, Nonce} = prepare_for_spending(BlocksToMine),
     {ok, SpendTx} =
         aec_spend_tx:new(
-          #{sender => aec_id:create(account, PubKey),
-            recipient => aec_id:create(account, random_hash()),
+          #{sender_id => aec_id:create(account, PubKey),
+            recipient_id => aec_id:create(account, random_hash()),
             amount => Amount,
             fee => Fee,
             nonce => Nonce,
@@ -3020,8 +3017,8 @@ post_broken_tx(_Config) ->
     {PubKey, Nonce} = prepare_for_spending(BlocksToMine),
     {ok, SpendTx} =
         aec_spend_tx:new(
-          #{sender => aec_id:create(account, PubKey),
-            recipient => aec_id:create(account, random_hash()),
+          #{sender_id => aec_id:create(account, PubKey),
+            recipient_id => aec_id:create(account, random_hash()),
             amount => Amount,
             fee => Fee,
             nonce => Nonce,
@@ -3047,8 +3044,8 @@ post_broken_base58_tx(_Config) ->
         fun(_) ->
             {ok, SpendTx} =
                 aec_spend_tx:new(
-                  #{sender => aec_id:create(account, PubKey),
-                    recipient => aec_id:create(account, random_hash()),
+                  #{sender_id => aec_id:create(account, PubKey),
+                    recipient_id => aec_id:create(account, random_hash()),
                     amount => Amount,
                     fee => Fee,
                     nonce => Nonce,
@@ -3651,10 +3648,10 @@ naming_system_manage_name(_Config) ->
     {ok, 200, #{<<"balance">> := Balance3}} = get_balance_at_top(),
     Host = internal_address(),
     {ok, 200, _} = http_request(Host, post, "spend-tx",
-                                #{recipient_pubkey => EncodedNHash,
-                                  amount           => 77,
-                                  fee              => 50,
-                                  payload          => <<"foo">>}),
+                                #{recipient_id => EncodedNHash,
+                                  amount       => 77,
+                                  fee          => 50,
+                                  payload      => <<"foo">>}),
     aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE), 3),
     {ok, []} = rpc(aec_tx_pool, peek, [infinity]),
 
@@ -5303,8 +5300,7 @@ post_spend_tx(Recipient, Amount, Fee) ->
 post_spend_tx(Recipient, Amount, Fee, Payload) ->
     Host = internal_address(),
     http_request(Host, post, "spend-tx",
-                 #{recipient_pubkey => aec_base58c:encode(
-                                         account_pubkey, Recipient),
+                 #{recipient_id => aec_base58c:encode(account_pubkey, Recipient),
                    amount => Amount,
                    fee => Fee,
                    payload => Payload}).
@@ -5516,7 +5512,7 @@ swagger_validation_schema(_Config) ->
                         <<"error">> := <<"wrong_type">>,
                         <<"path">> := [<<"fee">>]
         }}} = http_request(Host, post, "spend-tx", #{
-                   recipient_pubkey => <<"">>,
+                   recipient_id => <<"">>,
                    amount => 0,
                    fee => <<"wrong_fee_data">>,
                    ttl => 100,
@@ -5525,7 +5521,7 @@ swagger_validation_schema(_Config) ->
             <<"reason">> := <<"validation_error">>,
             <<"parameter">> := <<"body">>,
             <<"info">> :=  #{
-                        <<"data">> := <<"recipient_pubkey">>,
+                        <<"data">> := <<"recipient_id">>,
                         <<"error">> := <<"missing_required_property">>,
                         <<"path">> := []
         }}} = http_request(Host, post, "spend-tx", #{
@@ -5541,7 +5537,7 @@ swagger_validation_schema(_Config) ->
                         <<"error">> := <<"not_in_range">>,
                         <<"path">> := [<<"amount">>]
         }}} = http_request(Host, post, "spend-tx", #{
-                   recipient_pubkey => <<"">>,
+                   recipient_id => <<"">>,
                    amount => -1,
                    fee => <<"fee">>,
                    ttl => 100,
@@ -5936,14 +5932,14 @@ add_spend_txs() ->
     Txs =
         lists:map(
             fun(_) ->
-                #{recipient => random_hash(), amount => MinimalAmount, fee => MinFee}
+                #{recipient_id => random_hash(), amount => MinimalAmount, fee => MinFee}
             end,
             lists:seq(0, TxsCnt -1)),
     populate_block(#{spend_txs => Txs}).
 
 populate_block(Txs) ->
     lists:map(
-        fun(#{recipient := R, amount := A, fee := F}) ->
+        fun(#{recipient_id := R, amount := A, fee := F}) ->
                 {ok, 200, #{<<"tx_hash">> := TxHash}} = post_spend_tx(R, A, F),
                 TxHash
         end,
@@ -5955,7 +5951,7 @@ give_tokens(RecipientPubkey, Amount) ->
     NeededBlocks = ((Amount + MinFee)  div MineReward) + 1,
     aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE),
                                    NeededBlocks),
-    SpendData = #{recipient => RecipientPubkey,
+    SpendData = #{recipient_id => RecipientPubkey,
                   amount => Amount,
                   fee => MinFee},
     populate_block(#{spend_txs => [SpendData]}),
