@@ -12,7 +12,7 @@
 -export([terminate/3]).
 
 -record(handler, {fsm_pid            :: pid() | undefined,
-                  channel_id         :: aesc_channels:id() | undefined,
+                  channel_id         :: aesc_channels:pubkey() | undefined,
                   job_id             :: term(),
                   role               :: initiator | responder | undefined,
                   host               :: binary() | undefined,
@@ -565,8 +565,8 @@ read_channel_options(Params) ->
             (Fun, Accum) -> Fun(Accum)
         end,
         #{},
-        [Read(<<"initiator">>, initiator, #{type => {hash, account_pubkey}}),
-         Read(<<"responder">>, responder, #{type => {hash, account_pubkey}}),
+        [Read(<<"initiator_id">>, initiator, #{type => {hash, account_pubkey}}),
+         Read(<<"responder_id">>, responder, #{type => {hash, account_pubkey}}),
          Read(<<"lock_period">>, lock_period, #{type => integer}),
          Read(<<"push_amount">>, push_amount, #{type => integer}),
          Read(<<"initiator_amount">>, initiator_amount, #{type => integer}),

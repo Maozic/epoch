@@ -18,18 +18,18 @@ new(Owner, Round, VmVersion, Code, Deposit, Trees0) ->
     Trees1          = aec_trees:set_contracts(Trees0, ContractsTree1),
     {ContractPubKey, Contract, Trees1}.
 
--spec run_new(aect_contracts:id(), aect_call:call(), binary(),
+-spec run_new(aect_contracts:pubkey(), aect_call:call(), binary(),
               non_neg_integer(), aec_trees:trees())
     -> aec_trees:trees().
 run_new(ContractPubKey, Call, CallData, Round, Trees0) ->
     ContractsTree  = aec_trees:contracts(Trees0),
     Contract = aect_state_tree:get_contract(ContractPubKey, ContractsTree),
-    Owner = aect_contracts:owner(Contract),
+    OwnerPubKey = aect_contracts:owner_pubkey(Contract),
     Code = aect_contracts:code(Contract),
     CallStack = [], %% TODO: should we have a call stack for create_tx also
                     %% when creating a contract in a contract.
     VmVersion = aect_contracts:vm_version(Contract),
-    CallDef = #{ caller     => Owner
+    CallDef = #{ caller     => OwnerPubKey
                , contract   => ContractPubKey
                , gas        => 10000000
                , gas_price  => 1
@@ -66,19 +66,19 @@ run_new(ContractPubKey, Call, CallData, Round, Trees0) ->
             Trees0
     end.
 
--spec run(aect_contracts:id(), aect_contracts:vm_version(), aect_call:call(),
+-spec run(aect_contracts:pubkey(), aect_contracts:vm_version(), aect_call:call(),
           binary(), [non_neg_integer()], non_neg_integer(), aec_trees:trees())
     -> aec_trees:trees().
 run(ContractPubKey, VmVersion, Call, CallData, CallStack, Round, Trees0) ->
     ContractsTree  = aec_trees:contracts(Trees0),
     Contract = aect_state_tree:get_contract(ContractPubKey, ContractsTree),
-    Owner = aect_contracts:owner(Contract),
+    OwnerPubKey = aect_contracts:owner_pubkey(Contract),
     Code = aect_contracts:code(Contract),
     case aect_contracts:vm_version(Contract) =:= VmVersion of
         true  -> ok;
         false ->  erlang:error(wrong_vm_version)
     end,
-    CallDef = #{ caller     => Owner
+    CallDef = #{ caller     => OwnerPubKey
                , contract   => ContractPubKey
                , gas        => 10000000
                , gas_price  => 0
@@ -93,10 +93,10 @@ run(ContractPubKey, VmVersion, Call, CallData, CallStack, Round, Trees0) ->
     {CallRes, Trees} = aect_dispatch:run(VmVersion, CallDef),
     aect_utils:insert_call_in_trees(CallRes, Trees).
 
-get_call(Contract, Caller, Round, Trees) ->
+get_call(ContractPubkey, CallerPubkey, Round, Trees) ->
     CallsTree = aec_trees:calls(Trees),
-    CallId = aect_call:id(Caller, Round, Contract),
-    case aect_call_state_tree:lookup_call(Contract, CallId, CallsTree) of
+    CallId = aect_call:id(CallerPubkey, Round, ContractPubkey),
+    case aect_call_state_tree:lookup_call(ContractPubkey, CallId, CallsTree) of
         none -> {error, call_not_found};
         {value, Call} -> {ok, Call}
     end.
