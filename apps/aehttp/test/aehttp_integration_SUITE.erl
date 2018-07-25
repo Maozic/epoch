@@ -2475,18 +2475,18 @@ nameservice_transactions(_Config) ->
 
 nameservice_transaction_preclaim(MinerAddress, MinerPubkey) ->
     Commitment = random_hash(),
-    Encoded = #{account => MinerAddress,
-                commitment => aec_base58c:encode(commitment, Commitment),
+    Encoded = #{account_id => MinerAddress,
+                commitment_id => aec_base58c:encode(commitment, Commitment),
                 fee => 1},
     Decoded = maps:merge(Encoded,
-                        #{account => aec_id:create(account, MinerPubkey),
-                          commitment => aec_id:create(commitment, Commitment)}),
+                        #{account_id => aec_id:create(account, MinerPubkey),
+                          commitment_id => aec_id:create(commitment, Commitment)}),
     unsigned_tx_positive_test(Decoded, Encoded,
                                fun get_name_preclaim/1,
                                fun aens_preclaim_tx:new/1, MinerPubkey),
-    test_invalid_hash({account_pubkey, MinerPubkey}, account, Encoded, fun get_name_preclaim/1),
-    test_invalid_hash({commitment, MinerPubkey}, commitment, Encoded, fun get_name_preclaim/1),
-    test_missing_address(account, Encoded, fun get_name_preclaim/1),
+    test_invalid_hash({account_pubkey, MinerPubkey}, account_id, Encoded, fun get_name_preclaim/1),
+    test_invalid_hash({commitment, MinerPubkey}, commitment_id, Encoded, fun get_name_preclaim/1),
+    test_missing_address(account_id, Encoded, fun get_name_preclaim/1),
     ok.
 
 test_invalid_hash({PubKeyType, PubKey}, MapKey0, Encoded, APIFun) when is_atom(PubKeyType) ->
@@ -2528,7 +2528,7 @@ nameservice_transaction_claim(MinerAddress, MinerPubkey) ->
     Name = <<"name.test">>,
     Salt = 1234,
 
-    {ok, 200, #{<<"commitment">> := EncodedCHash}} = get_commitment_hash(Name, Salt),
+    {ok, 200, #{<<"commitment_id">> := EncodedCHash}} = get_commitment_hash(Name, Salt),
     {ok, CHash} = aec_base58c:safe_decode(commitment, EncodedCHash),
 
     %% Submit name preclaim tx and check it is in mempool
@@ -2540,19 +2540,19 @@ nameservice_transaction_claim(MinerAddress, MinerPubkey) ->
     %% Mine a block and check mempool empty again
     aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE), 2),
     {ok, []} = rpc(aec_tx_pool, peek, [infinity]),
-    Encoded = #{account => MinerAddress,
+    Encoded = #{account_id => MinerAddress,
                 name => aec_base58c:encode(name, Name),
                 name_salt => Salt,
                 fee => 1},
     Decoded = maps:merge(Encoded,
-                        #{account => aec_id:create(account, MinerPubkey),
+                        #{account_id => aec_id:create(account, MinerPubkey),
                           name => Name}),
     unsigned_tx_positive_test(Decoded, Encoded,
                                fun get_name_claim/1,
                                fun aens_claim_tx:new/1, MinerPubkey),
-    test_invalid_hash({account_pubkey, MinerPubkey}, account, Encoded, fun get_name_claim/1),
+    test_invalid_hash({account_pubkey, MinerPubkey}, account_id, Encoded, fun get_name_claim/1),
     test_invalid_hash({name, MinerPubkey}, name, Encoded, fun get_name_claim/1),
-    test_missing_address(account, Encoded, fun get_name_claim/1),
+    test_missing_address(account_id, Encoded, fun get_name_claim/1),
 
     %% missing registar
     Missing = aec_base58c:encode(name, <<"missing">>),
@@ -2565,68 +2565,67 @@ nameservice_transaction_claim(MinerAddress, MinerPubkey) ->
 
 nameservice_transaction_update(MinerAddress, MinerPubkey) ->
     NameHash = random_hash(),
-    Pointers = [{}],
-    Encoded = #{account => MinerAddress,
-                name_hash => aec_base58c:encode(name, NameHash),
+    Pointers = [],
+    Encoded = #{account_id => MinerAddress,
+                name_id => aec_base58c:encode(name, NameHash),
                 name_ttl => 3,
                 client_ttl => 2,
-                pointers => jsx:encode(Pointers),
+                pointers => Pointers,
                 fee => 1},
     Decoded = maps:merge(Encoded,
-                        #{account => aec_id:create(account, MinerPubkey),
+                        #{account_id => aec_id:create(account, MinerPubkey),
                           pointers => Pointers,
-                          name_hash => aec_id:create(name, NameHash)}),
+                          name_id => aec_id:create(name, NameHash)}),
     unsigned_tx_positive_test(Decoded, Encoded,
                                fun get_name_update/1,
                                fun aens_update_tx:new/1, MinerPubkey),
-    test_invalid_hash({account_pubkey, MinerPubkey}, account, Encoded, fun get_name_update/1),
-    test_invalid_hash({name, MinerPubkey}, name_hash, Encoded, fun get_name_update/1),
-    test_missing_address(account, Encoded, fun get_name_update/1),
+    test_invalid_hash({account_pubkey, MinerPubkey}, account_id, Encoded, fun get_name_update/1),
+    test_invalid_hash({name, MinerPubkey}, name_id, Encoded, fun get_name_update/1),
+    test_missing_address(account_id, Encoded, fun get_name_update/1),
     %% test broken pointers
     TestBrokenPointers =
         fun(P) ->
             {ok, 400, #{<<"reason">> := <<"Invalid pointers">>}} =
                 get_name_update(maps:put(pointers, P, Encoded))
         end,
-    TestBrokenPointers(<<"not a valid JSON">>),
-    TestBrokenPointers(<<"{\"a\":1">>),
+    TestBrokenPointers([#{<<"key">> => <<"k2">>, <<"id">> => <<"not a valid pointer">>}]),
+    TestBrokenPointers([#{<<"invalid_key">> => <<"k2">>, <<"id">> => <<"not a valid pointer">>}]),
     ok.
 
 nameservice_transaction_transfer(MinerAddress, MinerPubkey) ->
     RandAddress = random_hash(),
     NameHash = random_hash(),
-    Encoded = #{account => MinerAddress,
-                name_hash => aec_base58c:encode(name, NameHash),
-                recipient_pubkey => aec_base58c:encode(account_pubkey,
-                                                       RandAddress),
+    Encoded = #{account_id => MinerAddress,
+                name_id => aec_base58c:encode(name, NameHash),
+                recipient_id => aec_base58c:encode(account_pubkey, RandAddress),
                 fee => 1},
     Decoded = maps:merge(Encoded,
-                        #{account => aec_id:create(account, MinerPubkey),
-                          recipient_account => aec_id:create(account, RandAddress),
-                          name_hash => aec_id:create(name, NameHash)}),
+                        #{account_id => aec_id:create(account, MinerPubkey),
+                          recipient_id => aec_id:create(account, RandAddress),
+                          name_id => aec_id:create(name, NameHash)}),
     unsigned_tx_positive_test(Decoded, Encoded,
                                fun get_name_transfer/1,
                                fun aens_transfer_tx:new/1, MinerPubkey),
-    test_invalid_hash({account_pubkey, MinerPubkey}, account, Encoded, fun get_name_transfer/1),
-    test_invalid_hash({account_pubkey, MinerPubkey}, recipient_pubkey, Encoded, fun get_name_transfer/1),
-    test_invalid_hash({name, MinerPubkey}, name_hash, Encoded, fun get_name_transfer/1),
-    test_missing_address(account, Encoded, fun get_name_transfer/1),
+    test_invalid_hash({account_pubkey, MinerPubkey}, account_id, Encoded, fun get_name_transfer/1),
+    test_invalid_hash({account_pubkey, MinerPubkey}, recipient_id, Encoded, fun get_name_transfer/1),
+    test_invalid_hash({name, MinerPubkey}, name_id, Encoded, fun get_name_transfer/1),
+    test_missing_address(account_id, Encoded, fun get_name_transfer/1),
     ok.
 
 nameservice_transaction_revoke(MinerAddress, MinerPubkey) ->
     NameHash = random_hash(),
-    Encoded = #{account => MinerAddress,
-                name_hash => aec_base58c:encode(name, NameHash),
+    Encoded = #{account_id => MinerAddress,
+                name_id => aec_base58c:encode(name, NameHash),
                 fee => 1},
     Decoded = maps:merge(Encoded,
-                        #{account => aec_id:create(account, MinerPubkey),
-                          name_hash => aec_id:create(name, NameHash)}),
+                        #{account_id => aec_id:create(account, MinerPubkey),
+                          name_id => aec_id:create(name, NameHash)}),
     unsigned_tx_positive_test(Decoded, Encoded,
                                fun get_name_revoke/1,
                                fun aens_revoke_tx:new/1, MinerPubkey),
-    test_invalid_hash({account_pubkey, MinerPubkey}, account, Encoded, fun get_name_revoke/1),
-    test_invalid_hash({account_pubkey, MinerPubkey}, name_hash, Encoded, fun get_name_revoke/1),
-    test_missing_address(account, Encoded, fun get_name_revoke/1),
+    test_invalid_hash({account_pubkey, MinerPubkey}, account_id, Encoded, fun get_name_revoke/1),
+    test_invalid_hash({account_pubkey, MinerPubkey}, name_id, Encoded, fun get_name_revoke/1),
+    test_missing_address(account_id, Encoded, fun get_name_revoke/1),
     ok.
 
 %% tests the following
@@ -3574,7 +3573,7 @@ naming_system_manage_name(_Config) ->
     Name        = <<"詹姆斯詹姆斯.test"/utf8>>,
     NameSalt    = 12345,
     NameTTL     = 20000,
-    Pointers    = <<"{\"account_pubkey\":\"", PubKeyEnc/binary, "\"}">>,
+    Pointers    = [#{<<"key">> => <<"account_pubkey">>, <<"id">> => PubKeyEnc}],
     TTL         = 10,
     {ok, NHash} = aens:get_name_hash(Name),
     Fee         = 2,
@@ -3588,7 +3587,7 @@ naming_system_manage_name(_Config) ->
     {ok, []} = rpc(aec_tx_pool, peek, [infinity]),
 
     %% Get commitment hash to preclaim a name
-    {ok, 200, #{<<"commitment">> := EncodedCHash}} = get_commitment_hash(Name, NameSalt),
+    {ok, 200, #{<<"commitment_id">> := EncodedCHash}} = get_commitment_hash(Name, NameSalt),
     {ok, CHash} = aec_base58c:safe_decode(commitment, EncodedCHash),
 
     %% Submit name preclaim tx and check it is in mempool
@@ -3624,10 +3623,9 @@ naming_system_manage_name(_Config) ->
     %% Check that name entry is present
     EncodedNHash = aec_base58c:encode(name, NHash),
     ExpectedTTL1 = 4 + aec_governance:name_claim_max_expiration(),
-    {ok, 200, #{<<"name">>      := Name,
-                <<"name_hash">> := EncodedNHash,
-                <<"name_ttl">>  := ExpectedTTL1,
-                <<"pointers">>  := <<"[]">>}} = get_name(Name),
+    {ok, 200, #{<<"id">>       := EncodedNHash,
+                <<"expires">>  := ExpectedTTL1,
+                <<"pointers">> := []}} = get_name(Name),
 
     %% Submit name updated tx and check it is in mempool
     {ok, 200, _}               = post_name_update_tx(NHash, NameTTL, Pointers, TTL, Fee),
@@ -3641,8 +3639,7 @@ naming_system_manage_name(_Config) ->
 
     %% Check that TTL and pointers got updated in name entry
     ExpectedTTL2 = 6 + NameTTL,
-    {ok, 200, #{<<"name">>     := Name,
-                <<"name_ttl">> := ExpectedTTL2,
+    {ok, 200, #{<<"expires">> := ExpectedTTL2,
                 <<"pointers">> := Pointers}} = get_name(Name),
 
     {ok, 200, #{<<"balance">> := Balance3}} = get_balance_at_top(),
@@ -3707,7 +3704,7 @@ naming_system_broken_txs(_Config) ->
     {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
         post_name_claim_tx(Name, NameSalt, Fee),
     {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
-        post_name_update_tx(NHash, 5, <<"pointers">>, 5, Fee),
+        post_name_update_tx(NHash, 5, [], 5, Fee),
     {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
         post_name_transfer_tx(NHash, random_hash(), Fee),
     {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
@@ -5308,8 +5305,8 @@ post_spend_tx(Recipient, Amount, Fee, Payload) ->
 post_name_preclaim_tx(Commitment, Fee) ->
     Host = internal_address(),
     http_request(Host, post, "name-preclaim-tx",
-                 #{commitment => aec_base58c:encode(commitment, Commitment),
-                   fee        => Fee}).
+                 #{commitment_id => aec_base58c:encode(commitment, Commitment),
+                   fee           => Fee}).
 
 post_name_claim_tx(Name, NameSalt, Fee) ->
     Host = internal_address(),
@@ -5321,7 +5318,7 @@ post_name_claim_tx(Name, NameSalt, Fee) ->
 post_name_update_tx(NameHash, NameTTL, Pointers, ClientTTL, Fee) ->
     Host = internal_address(),
     http_request(Host, post, "name-update-tx",
-                 #{name_hash  => aec_base58c:encode(name, NameHash),
+                 #{name_id    => aec_base58c:encode(name, NameHash),
                    client_ttl => ClientTTL,
                    pointers   => Pointers,
                    name_ttl   => NameTTL,
@@ -5330,15 +5327,15 @@ post_name_update_tx(NameHash, NameTTL, Pointers, ClientTTL, Fee) ->
 post_name_transfer_tx(NameHash, RecipientPubKey, Fee) ->
     Host = internal_address(),
     http_request(Host, post, "name-transfer-tx",
-                 #{name_hash        => aec_base58c:encode(name, NameHash),
-                   recipient_pubkey => aec_base58c:encode(account_pubkey, RecipientPubKey),
-                   fee              => Fee}).
+                 #{name_id      => aec_base58c:encode(name, NameHash),
+                   recipient_id => aec_base58c:encode(account_pubkey, RecipientPubKey),
+                   fee          => Fee}).
 
 post_name_revoke_tx(NameHash, Fee) ->
     Host = internal_address(),
     http_request(Host, post, "name-revoke-tx",
-                 #{name_hash => aec_base58c:encode(name, NameHash),
-                   fee       => Fee}).
+                 #{name_id => aec_base58c:encode(name, NameHash),
+                   fee     => Fee}).
 
 get_commitment_hash(Name, Salt) ->
     Host = external_address(),
