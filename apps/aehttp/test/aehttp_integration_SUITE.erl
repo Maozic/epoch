@@ -138,8 +138,6 @@
 
     % infos
     version/1,
-    info_disabled/1,
-    info_empty/1,
 
     peer_pub_key/1
    ]).
@@ -210,7 +208,6 @@
     wrong_http_method_all_accounts_balances/1,
     wrong_http_method_miner_pub_key/1,
     wrong_http_method_version/1,
-    wrong_http_method_info/1,
     wrong_http_method_list_oracles/1,
     wrong_http_method_list_oracle_queries/1,
     wrong_http_method_peers/1
@@ -491,8 +488,6 @@ groups() ->
 
         % infos
         version,
-        info_disabled,
-        info_empty,
 
         peer_pub_key
       ]},
@@ -547,7 +542,6 @@ groups() ->
         wrong_http_method_all_accounts_balances,
         wrong_http_method_miner_pub_key,
         wrong_http_method_version,
-        wrong_http_method_info,
         wrong_http_method_list_oracles,
         wrong_http_method_list_oracle_queries,
         wrong_http_method_peers
@@ -3057,28 +3051,6 @@ version(_Config) ->
     {block_hash, GenHash0} = aec_base58c:decode(EncodedGH),
     ok.
 
-info_disabled(_Config) ->
-    rpc(application, set_env, [aehttp, enable_debug_endpoints, false]),
-    {ok, 403, #{<<"reason">> := <<"Info not enabled">>}} = get_info(),
-    ok.
-
-info_empty(_Config) ->
-    ok = rpc(aec_conductor, reinit_chain, []),
-    rpc(application, set_env, [aehttp, enable_debug_endpoints, true]),
-    ExpectedEmpty = #{<<"last_30_blocks_time">> => [ #{<<"difficulty">> => 1.0,
-                                                       <<"height">> => 0,
-                                                       <<"time">>  => 0}]},
-    {ok, 200, ExpectedEmpty} = get_info(),
-
-    ForkHeight = aecore_suite_utils:latest_fork_height(),
-    aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE),
-                                   ForkHeight),
-    ok.
-
-
-
-
-
 %% positive test of spend_tx is handled in pending_transactions test
 broken_spend_tx(_Config) ->
     ok = rpc(aec_conductor, reinit_chain, []),
@@ -4954,10 +4926,6 @@ get_version() ->
     Host = external_address(),
     http_request(Host, get, "version", []).
 
-get_info() ->
-    Host = external_address(),
-    http_request(Host, get, "info", []).
-
 get_list_oracles(Max) ->
     get_list_oracles(undefined, Max).
 
@@ -5205,10 +5173,6 @@ wrong_http_method_miner_pub_key(_Config) ->
 wrong_http_method_version(_Config) ->
     Host = external_address(),
     {ok, 405, _} = http_request(Host, post, "version", []).
-
-wrong_http_method_info(_Config) ->
-    Host = external_address(),
-    {ok, 405, _} = http_request(Host, post, "info", []).
 
 wrong_http_method_block_by_height(_Config) ->
     Host = external_address(),
