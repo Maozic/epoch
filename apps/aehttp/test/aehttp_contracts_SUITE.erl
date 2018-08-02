@@ -525,39 +525,198 @@ maps_contract(Config) ->
 		 priv_key := BPrivkey},
       acc_c := #{pub_key := CPubkey,
 		 priv_key := CPrivkey},
-      acc_d := #{pub_key := DPubkey}} = proplists:get_value(accounts, Config),
+      acc_d := #{pub_key := DPubkey,
+		 priv_key := DPrivkey}} = proplists:get_value(accounts, Config),
 
     %% Make sure accounts have enough tokens.
-    ABal0 = ensure_balance(APubkey, 500000),
-    BBal0 = ensure_balance(BPubkey, 500000),
-    CBal0 = ensure_balance(CPubkey, 500000),
-    DBal0 = ensure_balance(DPubkey, 500000),
+    ABal0 = ensure_balance(APubkey, 5000000),
+    BBal0 = ensure_balance(BPubkey, 5000000),
+    CBal0 = ensure_balance(CPubkey, 5000000),
+    DBal0 = ensure_balance(DPubkey, 5000000),
     {ok,[_]} = aecore_suite_utils:mine_blocks(NodeName, 1),
 
     %% Compile test contract "maps.aes" but a simple test first.
+    %% ContractString = aeso_test_utils:read_contract("maps"),
+    %% aeso_compiler:from_string(ContractString, []),
+
     Code = compile_test_contract("maps"),
 
     %% Initialise contract owned by Alice.
     {EncodedContractPubkey,_,_} =
 	create_contract(NodeName, APubkey, APrivkey, Code, <<"()">>),
 
-    %% get_state
-    ct:pal("Calling get_state\n"),
-    GetState1 = call_get_state(NodeName, APubkey, APrivkey,
-			       EncodedContractPubkey, Code),
-    ct:pal("Get state 1 ~p\n", [GetState1]),
-
     %% Set state {[k] = v}
+    %% State now {map_i = {[1]=>{x=1,y=2},[2]=>{x=3,y=4},[3]=>{x=5,y=6}},
+    %%            map_s = ["one"]=> ... , ["two"]=> ... , ["three"] => ...}
     call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey, Code,
-			      <<"map_state_i">>, <<"()">>),
-    call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey, Code,
-			      <<"map_state_s">>, <<"()">>),
+	      <<"map_state_i">>, <<"()">>),
+    call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey, Code,
+	      <<"map_state_s">>, <<"()">>),
 
-    %% get_state
-    ct:pal("Calling get_state\n"),
-    GetState2 = call_get_state(NodeName, APubkey, APrivkey,
-			       EncodedContractPubkey, Code),
-    ct:pal("Get state 2 ~p\n", [GetState2]),
+    %% Print current state
+    ct:pal("State ~p\n", [call_get_state(NodeName, APubkey, APrivkey,
+					 EncodedContractPubkey, Code)]),
+
+    {IXSValue, _}= call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			     Code, <<"xx_state_map_i">>, <<"()">>),
+    IXSMap = decode_data(<<"map(int, (int, int))">>, IXSValue),
+    {SXSValue, _}= call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			     Code, <<"xx_state_map_s">>, <<"()">>),
+    SXSMap = decode_data(<<"map(string, (int, int))">>, SXSValue),
+
+    ct:pal("IXSMap ~p\n", [IXSMap]),
+    ct:pal("SXSMap ~p\n", [SXSMap]),
+
+    %% m[k]
+    [#{<<"type">> := <<"word">>, <<"value">> := 3},
+     #{<<"type">> := <<"word">>, <<"value">> := 4}] =
+	call_get_state_i(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			 Code, <<"2">>),
+    [#{<<"type">> := <<"word">>, <<"value">> := 5},
+     #{<<"type">> := <<"word">>, <<"value">> := 6}] =
+	call_get_state_s(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			 Code, <<"\"three\"">>),
+
+    %% m{[k] = v}
+    %% State now {map_i = {[1]=>{x=11,y=22},[2]=>{x=3,y=4},[3]=>{x=5,y=6}},
+    %%            map_s = ["one"]=> ... , ["two"]=> ... , ["three"] => ...}
+    %% Need to call our extra functions as cannot create record as argument.
+    call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey, Code,
+	      <<"xx_set_state_i">>, <<"(1, 11, 22)">>),
+    call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey, Code,
+	      <<"xx_set_state_s">>, <<"(\"one\", 11, 22)">>),
+
+    [#{<<"value">> := 11}, #{<<"value">> := 22}] =
+	call_get_state_i(NodeName, CPubkey, CPrivkey, EncodedContractPubkey,
+			 Code, <<"1">>),
+    [#{<<"value">> := 11}, #{<<"value">> := 22}] =
+	call_get_state_s(NodeName, CPubkey, CPrivkey, EncodedContractPubkey,
+			 Code, <<"\"one\"">>),
+
+    %% m{f[k].x = v}
+    call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey, Code,
+	      <<"setx_state_i">>, <<"(2, 33)">>),
+    call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey, Code,
+	      <<"setx_state_s">>, <<"(\"two\", 33)">>),
+
+    [#{<<"value">> := 33}, #{<<"value">> := 4}] =
+	call_get_state_i(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+			 Code, <<"2">>),
+    [#{<<"value">> := 33}, #{<<"value">> := 4}] =
+	call_get_state_s(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+			 Code, <<"\"two\"">>),
+
+    %% Map.member
+    %% Check keys 1 and "one" which exist and 10 and "ten" which don't.
+
+    {IM1Value,_} = call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			     Code, <<"member_state_i">>, <<"(1)">>),
+    #{<<"value">> := 1} = decode_data(<<"bool">>, IM1Value),
+    {IM2Value,_} = call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			     Code, <<"member_state_i">>, <<"(10)">>),
+    #{<<"value">> := 0} = decode_data(<<"bool">>, IM2Value),
+
+    {SM1Value,_} = call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			     Code, <<"member_state_s">>, <<"(\"one\")">>),
+    #{<<"value">> := 1} = decode_data(<<"bool">>, SM1Value),
+    {SM2Value,_} = call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			     Code, <<"member_state_s">>, <<"(\"ten\")">>),
+    #{<<"value">> := 0} = decode_data(<<"bool">>, SM2Value),
+
+    %% Map.lookup
+    %% The values of map keys 3 and "three" are unchanged, keys 10 and
+    %% "ten" don't exist.
+
+    {IL1Value,_} = call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey,
+			     Code, <<"lookup_state_i">>, <<"(3)">>),
+    #{<<"type">> := <<"option">>,
+      <<"value">> := #{<<"value">> := [#{<<"value">> := 5},
+				       #{<<"value">> := 6}]}} =
+	decode_data(<<"option((int, int))">>, IL1Value),
+    {IL2Value,_} = call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey,
+			     Code, <<"lookup_state_i">>, <<"(10)">>),
+    #{<<"type">> := <<"option">>,
+      <<"value">> := <<"None">>} =
+	decode_data(<<"option((int, int))">>, IL2Value),
+
+    {SL1Value,_} = call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey,
+			     Code, <<"lookup_state_s">>, <<"(\"three\")">>),
+    #{<<"type">> := <<"option">>,
+      <<"value">> := #{<<"value">> := [#{<<"value">> := 5},
+				       #{<<"value">> := 6}]}} =
+	decode_data(<<"option((int, int))">>, SL1Value),
+    {SL2Value,_} = call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey,
+			     Code, <<"lookup_state_s">>, <<"(\"ten\")">>),
+    #{<<"type">> := <<"option">>,
+      <<"value">> := <<"None">>} =
+	decode_data(<<"option((int, int))">>, SL2Value),
+
+    %% Map.delete
+    %% Check map keys 3 and "three" exist, delete them and check that
+    %% they have gone, then put them back for future use.
+
+    {ID1Value,_} = call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+			     Code, <<"member_state_i">>, <<"(3)">>),
+    #{<<"value">> := 1} = decode_data(<<"bool">>, ID1Value),
+    {SD1Value,_} = call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+			     Code, <<"member_state_s">>, <<"(\"three\")">>),
+    #{<<"value">> := 1} = decode_data(<<"bool">>, SD1Value),
+    call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+	      Code, <<"delete_state_i">>, <<"(3)">>),
+    call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+	      Code, <<"delete_state_s">>, <<"(\"three\")">>),
+    {ID2Value,_} = call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+			     Code, <<"member_state_i">>, <<"(3)">>),
+    #{<<"value">> := 0} = decode_data(<<"bool">>, ID2Value),
+    {SD2Value,_} = call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+			     Code, <<"member_state_s">>, <<"(\"three\")">>),
+    #{<<"value">> := 0} = decode_data(<<"bool">>, SD2Value),
+    call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey, Code,
+	      <<"xx_set_state_i">>, <<"(3, 5, 6)">>),
+    call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey, Code,
+	      <<"xx_set_state_s">>, <<"(\"three\", 5, 6)">>),
+
+    %% Map.size
+    %% Both of these still contain 3 elements.
+
+    {ISValue,_} = call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			     Code, <<"size_state_i">>, <<"()">>),
+    #{<<"value">> := 3} =
+	decode_data(<<"int">>, ISValue),
+    {SSValue,_} = call_func(NodeName, BPubkey, BPrivkey, EncodedContractPubkey,
+			     Code, <<"size_state_s">>, <<"()">>),
+    #{<<"value">> := 3} =
+	decode_data(<<"int">>, SSValue),
+
+    %% Map.to_list
+
+    {ITLValue,_} = call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey,
+			     Code, <<"tolist_state_i">>, <<"()">>),
+    IToList = decode_data(<<"list((int, (int, int)))">>, ITLValue),
+    {STLValue,_} = call_func(NodeName, CPubkey, CPrivkey, EncodedContractPubkey,
+			     Code, <<"tolist_state_s">>, <<"()">>),
+    SToList = decode_data(<<"list((string, (int, int)))">>, STLValue),
+
+    ct:pal("IToList ~p\n", [IToList]),
+    ct:pal("SToList ~p\n", [SToList]),
+
+    %% Map.from_list
+
+    {IFLValue,_} = call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+			     Code, <<"xx_fromlist_state_i">>, <<"(242424)">>),
+    #{<<"value">> := 1} = decode_data(<<"bool">>, IFLValue),
+    {SFLValue,_} = call_func(NodeName, DPubkey, DPrivkey, EncodedContractPubkey,
+			     Code, <<"xx_fromlist_state_s">>, <<"(\"xxx\")">>),
+    #{<<"value">> := 1} = decode_data(<<"bool">>, SFLValue),
+
+    %% Print current state
+    ct:pal("State ~p\n", [call_get_state(NodeName, APubkey, APrivkey,
+					 EncodedContractPubkey, Code)]),
+
+    %% ct:pal("A Balances ~p, ~p\n", [ABal0,get_balance(APubkey)]),
+    %% ct:pal("B Balances ~p, ~p\n", [BBal0,get_balance(BPubkey)]),
+    %% ct:pal("C Balances ~p, ~p\n", [CBal0,get_balance(CPubkey)]),
+    %% ct:pal("D Balances ~p, ~p\n", [DBal0,get_balance(DPubkey)]),
 
     ok.
 
@@ -565,8 +724,19 @@ call_get_state(NodeName, Pubkey, Privkey, EncodedContractPubkey, Code) ->
     StateType = <<"( map(int, (int, int)), map(string, (int, int)) )">>,
     {GSValue,_} = call_func(NodeName, Pubkey, Privkey, EncodedContractPubkey,
 			    Code, <<"get_state">>, <<"()">>),
-    #{<<"value">> := GetState} = decode_data(StateType, GSValue),
-    GetState.
+    decode_data(StateType, GSValue).
+
+call_get_state_i(NodeName, Pubkey, Privkey, EncodedContractPubkey, Code, K) ->
+    {GSValue,_} = call_func(NodeName, Pubkey, Privkey, EncodedContractPubkey,
+			    Code, <<"get_state_i">>, <<$(,K/binary,$)>>),
+    #{<<"value">> := GetValue} = decode_data(<<"(int, int)">>, GSValue),
+    GetValue.
+
+call_get_state_s(NodeName, Pubkey, Privkey, EncodedContractPubkey, Code, K) ->
+    {GSValue,_} = call_func(NodeName, Pubkey, Privkey, EncodedContractPubkey,
+			    Code, <<"get_state_s">>, <<$(,K/binary,$)>>),
+    #{<<"value">> := GetValue} = decode_data(<<"(int, int)">>, GSValue),
+    GetValue.
 
 %% enironment_contract(Config)
 %%  Check the Environment contract. We don't always check values and
@@ -867,7 +1037,12 @@ dutch_auction_contract(Config) ->
 %% oracles_contract(Config)
 %%  Test the Oracles contract.
 
-oracles_contract(_Config) ->
+oracles_contract(Config) ->
+    NodeName = proplists:get_value(node_name, Config),
+
+    %% Compile test contract "oracles.aes"
+    Code = compile_test_contract("oracles"),
+
     ok.
 
 get_balance(Pubkey) ->
@@ -901,8 +1076,14 @@ decode_data(Type, EncodedData) ->
 compile_test_contract(ContractFile) ->
     ContractString = aeso_test_utils:read_contract(ContractFile),
     SophiaCode = list_to_binary(ContractString),
-    {ok, 200, #{<<"bytecode">> := Code}} = get_contract_bytecode(SophiaCode),
-    Code.
+    case get_contract_bytecode(SophiaCode) of
+	{ok,200,#{<<"bytecode">> := Code}} -> Code;
+	{ok,403,#{<<"reason">> := Error}} ->	%Compile error
+	    error({compile_error,Error})
+    end.
+
+    %% BinCode = aeso_compiler:from_string(ContractString, []),
+    %% aeu_hex:hexstring_encode(BinCode).
 
 %% create_contract(NodeName, Pubkey, Privkey, Code, InitArgument) ->
 %%     {EncodedContractPubkey,DecodedContractPubkey,InitReturn}.

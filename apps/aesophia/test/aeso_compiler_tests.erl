@@ -40,10 +40,12 @@ compilable_contracts() ->
      "fundme",
      "identity",
      "maps",
+     "oracles",
      "remote_call",
      "simple",
      "simple_storage",
      "spend_test",
      "stack",
-     "test"
+     "test",
+     "variant_types"
     ].

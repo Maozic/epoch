@@ -1,3 +1,6 @@
+// Extra functions with xx in their names have been added to make it
+// testable from a contract.
+
 contract Maps =
 
   record pt    = {x : int, y : int}
@@ -20,6 +23,9 @@ contract Maps =
   function map_state_i() = put(state{ map_i = map_i() })
   function map_state_s() = put(state{ map_s = map_s() })
 
+  function xx_state_map_i() = state.map_i
+  function xx_state_map_s() = state.map_s
+
   // m[k]
   function get_i(k, m : map(int,    pt)) = m[k]
   function get_s(k, m : map(string, pt)) = m[k]
@@ -31,6 +37,9 @@ contract Maps =
   function set_s(k, p, m : map(string, pt)) = m{ [k] = p }
   function set_state_i(k, p) = put(state{ map_i = set_i(k, p, state.map_i) })
   function set_state_s(k, p) = put(state{ map_s = set_s(k, p, state.map_s) })
+
+  function xx_set_state_i(k, x, y) = set_state_i(k, {x = x, y = y})
+  function xx_set_state_s(k, x, y) = set_state_s(k, {x = x, y = y})
 
   // m{f[k].x = v}
   function setx_i(k, x, m : map(int,    pt)) = m{ [k].x = x }
@@ -80,3 +89,15 @@ contract Maps =
   function fromlist_state_i(xs) = put(state{ map_i = fromlist_i(xs) })
   function fromlist_state_s(xs) = put(state{ map_s = fromlist_s(xs) })
 
+  // Use existing maps to generate a list then prefix with a new
+  // key/value tuple and then test if it is there.
+
+  function xx_fromlist_state_i(k : int) =
+    let l = (242424, {x = 43, y = 44}) :: Map.to_list(state.map_i)
+    let m = Map.from_list(l)
+    Map.member(k, m)
+
+  function xx_fromlist_state_s(k : string) =
+    let l = (k, {x = 43, y = 44}) :: Map.to_list(state.map_s)
+    let m = Map.from_list(l)
+    Map.member(k, m)
