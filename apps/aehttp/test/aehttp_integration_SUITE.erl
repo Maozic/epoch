@@ -178,7 +178,6 @@
     wrong_http_method_name_revoke/1,
     wrong_http_method_transactions/1,
     wrong_http_method_tx_id/1,
-    wrong_http_method_name_preclaim_tx/1,
     wrong_http_method_name_claim_tx/1,
     wrong_http_method_name_update_tx/1,
     wrong_http_method_name_transfer_tx/1,
@@ -491,7 +490,6 @@ groups() ->
         wrong_http_method_name_revoke,
         wrong_http_method_transactions,
         wrong_http_method_tx_id,
-        wrong_http_method_name_preclaim_tx,
         wrong_http_method_name_claim_tx,
         wrong_http_method_name_update_tx,
         wrong_http_method_name_transfer_tx,
@@ -2363,7 +2361,11 @@ nameservice_transaction_claim(MinerAddress, MinerPubkey) ->
     {ok, CHash} = aec_base58c:safe_decode(commitment, EncodedCHash),
 
     %% Submit name preclaim tx and check it is in mempool
-    {ok, 200, _}                   = post_name_preclaim_tx(CHash, 1),
+    PreclaimData = #{commitment_id => EncodedCHash,
+                     fee           => 1,
+                     account_id    => MinerAddress},
+    {ok, 200, #{<<"tx">> := PreclaimTxEnc}} = get_name_preclaim(PreclaimData),
+    sign_and_post_tx(PreclaimTxEnc),
     {ok, [PreclaimTx0]}            = rpc(aec_tx_pool, peek, [infinity]),
     {name_preclaim_tx, PreclaimTx} = aetx:specialize_type(aetx_sign:tx(PreclaimTx0)),
     CHash                          = aens_preclaim_tx:commitment_hash(PreclaimTx),
@@ -2934,7 +2936,11 @@ naming_system_manage_name(_Config) ->
     {ok, CHash} = aec_base58c:safe_decode(commitment, EncodedCHash),
 
     %% Submit name preclaim tx and check it is in mempool
-    {ok, 200, _}                   = post_name_preclaim_tx(CHash, Fee),
+    PreclaimData = #{commitment_id => EncodedCHash,
+                     fee           => Fee,
+                     account_id    => PubKeyEnc},
+    {ok, 200, #{<<"tx">> := PreclaimTxEnc}} = get_name_preclaim(PreclaimData),
+    sign_and_post_tx(PreclaimTxEnc),
     {ok, [PreclaimTx0]}            = rpc(aec_tx_pool, peek, [infinity]),
     {name_preclaim_tx, PreclaimTx} = aetx:specialize_type(aetx_sign:tx(PreclaimTx0)),
     CHash                          = aens_preclaim_tx:commitment_hash(PreclaimTx),
@@ -3038,8 +3044,10 @@ naming_system_broken_txs(_Config) ->
         get_commitment_hash(<<"abcd.badregistrar">>, 123),
     {ok, 400, #{<<"reason">> := <<"Name validation failed with a reason: registrar_unknown">>}} =
         get_name(<<"abcd.badregistrar">>),
-    {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
-        post_name_preclaim_tx(CHash, Fee),
+    {ok, 404, #{<<"reason">> := <<"Account of account_id not found">>}} =
+        get_name_preclaim(#{commitment_id => aec_base58c:encode(commitment, CHash),
+                            fee => Fee,
+                            account_id => aec_base58c:encode(account_pubkey, random_hash())}),
     {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
         post_name_claim_tx(Name, NameSalt, Fee),
     {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
@@ -4487,12 +4495,6 @@ post_spend_tx(SenderId, RecipientId, Amount, Fee, Payload) ->
                    fee => Fee,
                    payload => Payload}).
 
-post_name_preclaim_tx(Commitment, Fee) ->
-    Host = internal_address(),
-    http_request(Host, post, "name-preclaim-tx",
-                 #{commitment_id => aec_base58c:encode(commitment, Commitment),
-                   fee           => Fee}).
-
 post_name_claim_tx(Name, NameSalt, Fee) ->
     Host = internal_address(),
     http_request(Host, post, "name-claim-tx",
@@ -4725,10 +4727,6 @@ wrong_http_method_transactions(_Config) ->
 wrong_http_method_tx_id(_Config) ->
     Host = external_address(),
     {ok, 405, _} = http_request(Host, post, "tx/123", []).
-
-wrong_http_method_name_preclaim_tx(_Config) ->
-    Host = internal_address(),
-    {ok, 405, _} = http_request(Host, get, "name-preclaim-tx", []).
 
 wrong_http_method_name_claim_tx(_Config) ->
     Host = internal_address(),
