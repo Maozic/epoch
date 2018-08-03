@@ -181,11 +181,15 @@ spending_1(Config) ->
     ct:pal("Balances 0: ~p, ~p\n", [ABal0,BBal0]),
 
     %% Add tokens to both accounts and wait until done.
-    {ok,200,#{<<"tx_hash">> := ATxHash}} = post_spend_tx(APubkey, 500, 1),
-    {ok,200,#{<<"tx_hash">> := BTxHash}} = post_spend_tx(BPubkey, 500, 1),
+    {ok,200,#{<<"tx">> := ATx}} = post_spend_tx(APubkey, 500, 1),
+    SignedATx = sign_tx(ATx),
+    {ok, 200, #{<<"tx_hash">> := ATxHash}} = post_tx(SignedATx),
+    {ok,200,#{<<"tx">> := BTx}} = post_spend_tx(BPubkey, 500, 1),
+    SignedBTx = sign_tx(BTx),
+    {ok, 200, #{<<"tx_hash">> := BTxHash}} = post_tx(SignedBTx),
     MineUntilPosts = fun () ->
-			     tx_in_chain(ATxHash) and tx_in_chain(BTxHash)
-		     end,
+                             tx_in_chain(ATxHash) and tx_in_chain(BTxHash)
+                     end,
     aecore_suite_utils:mine_blocks_until(NodeName, MineUntilPosts, 10),
 
     %% Get balances after mining.
@@ -303,7 +307,9 @@ spending_3(Config) ->
     ct:pal("Balances 2: ~p, ~p\n", [ABal2,BBal2]),
 
     %% Now we add enough tokens to acc_a so it can do the spend tx.
-    {ok,200,#{<<"tx_hash">> := PostTxHash}} = post_spend_tx(APubkey, 500, 1),
+    {ok,200,#{<<"tx">> := PostTx}} = post_spend_tx(APubkey, 500, 1),
+    SignedPostTx = sign_tx(PostTx),
+    {ok, 200, #{<<"tx_hash">> := PostTxHash}} = post_tx(SignedPostTx),
     MineUntil = fun () -> tx_in_chain(PostTxHash) end,
     aecore_suite_utils:mine_blocks_until(NodeName, MineUntil, 10),
 
@@ -889,7 +895,9 @@ ensure_balance(Pubkey, NewBalance) ->
             %% Get more tokens from the miner.
             Fee = 1,
             Incr = NewBalance - Balance + Fee,  %Include the fee
-            {ok,200,_} = post_spend_tx(Pubkey, Incr, Fee),
+            {ok,200,#{<<"tx">> := SpendTx}} = post_spend_tx(Pubkey, Incr, Fee),
+            SignedSpendTx = sign_tx(SpendTx),
+            {ok, 200, _} = post_tx(SignedSpendTx),
             NewBalance
     end.
 
@@ -1055,9 +1063,11 @@ post_spend_tx(Recipient, Amount, Fee) ->
     post_spend_tx(Recipient, Amount, Fee, <<"post spend tx">>).
 
 post_spend_tx(Recipient, Amount, Fee, Payload) ->
-    Host = internal_address(),
-    http_request(Host, post, "spend-tx",
-                 #{recipient_id => aec_base58c:encode(account_pubkey, Recipient),
+    Host = external_address(),
+    {ok, Sender} = rpc(aec_keys, pubkey, []),
+    http_request(Host, post, "tx/spend",
+                 #{sender_id => aec_base58c:encode(account_pubkey, Sender),
+                   recipient_id => aec_base58c:encode(account_pubkey, Recipient),
                    amount => Amount,
                    fee => Fee,
                    payload => Payload}).
@@ -1080,6 +1090,12 @@ get_nonce(EncodedPubKey, Params) ->
 post_tx(TxSerialized) ->
     Host = external_address(),
     http_request(Host, post, "tx", #{tx => TxSerialized}).
+
+sign_tx(Tx) ->
+    {ok, TxDec} = aec_base58c:safe_decode(transaction, Tx),
+    UnsignedTx = aetx:deserialize_from_binary(TxDec),
+    {ok, SignedTx} = rpc(aec_keys, sign_tx, [UnsignedTx]),
+    aec_base58c:encode(transaction, aetx_sign:serialize_to_binary(SignedTx)).
 
 %% ============================================================
 %% private functions
@@ -1173,8 +1189,10 @@ process_http_return(R) ->
 new_account(Balance) ->
     {Pubkey,Privkey} = generate_key_pair(),
     Fee = 1,
-    {ok,200,#{<<"tx_hash">> := TxHash}} = post_spend_tx(Pubkey, Balance, Fee),
-    {Pubkey,Privkey,TxHash}.
+    {ok, 200, #{<<"tx">> := SpendTx}} = post_spend_tx(Pubkey, Balance, Fee),
+    SignedSpendTx = sign_tx(SpendTx),
+    {ok, 200, #{<<"tx_hash">> := SpendTxHash}} = post_tx(SignedSpendTx),
+    {Pubkey,Privkey,SpendTxHash}.
 
 %% spend_tokens(SenderPubkey, SenderPrivkey, Recipient, Amount, Fee) ->
 %% spend_tokens(SenderPubkey, SenderPrivkey, Recipient, Amount, Fee, CallerSet) ->
