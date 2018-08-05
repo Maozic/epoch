@@ -177,7 +177,6 @@
     wrong_http_method_name_revoke/1,
     wrong_http_method_transactions/1,
     wrong_http_method_tx_id/1,
-    wrong_http_method_name_revoke_tx/1,
     wrong_http_method_commitment_hash/1,
     wrong_http_method_name/1,
     wrong_http_method_balance/1,
@@ -485,7 +484,6 @@ groups() ->
         wrong_http_method_name_revoke,
         wrong_http_method_transactions,
         wrong_http_method_tx_id,
-        wrong_http_method_name_revoke_tx,
         wrong_http_method_commitment_hash,
         wrong_http_method_name,
         wrong_http_method_balance,
@@ -3022,7 +3020,11 @@ naming_system_manage_name(_Config) ->
     {ok, []} = rpc(aec_tx_pool, peek, [infinity]),
 
     %% Submit name revoke tx and check it is in mempool
-    {ok, 200, _}      = post_name_revoke_tx(NHash, Fee),
+    RevokeData = #{account_id => PubKeyEnc,
+                   name_id => aec_base58c:encode(name, NHash),
+                   fee => Fee},
+    {ok, 200, #{<<"tx">> := RevokeEnc}} = get_name_revoke(RevokeData),
+    sign_and_post_tx(RevokeEnc),
     {ok, [_RevokeTx]} = rpc(aec_tx_pool, peek, [infinity]),
 
     %% Mine a block and check mempool empty again
@@ -3072,9 +3074,10 @@ naming_system_broken_txs(_Config) ->
                             recipient_id => aec_base58c:encode(account_pubkey, random_hash()),
                             name_id => aec_base58c:encode(name, NHash),
                             fee => Fee}),
-    {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
-        post_name_revoke_tx(NHash, Fee),
-
+    {ok, 404, #{<<"reason">> := <<"Account of account_id not found">>}} =
+        get_name_revoke(#{account_id => aec_base58c:encode(account_pubkey, random_hash()),
+                          name_id => aec_base58c:encode(name, NHash),
+                          fee => Fee}),
     %% Check mempool still empty
     {ok, []} = rpc(aec_tx_pool, peek, [infinity]),
     ForkHeight = aecore_suite_utils:latest_fork_height(),
@@ -4513,12 +4516,6 @@ post_spend_tx(SenderId, RecipientId, Amount, Fee, Payload) ->
                    fee => Fee,
                    payload => Payload}).
 
-post_name_revoke_tx(NameHash, Fee) ->
-    Host = internal_address(),
-    http_request(Host, post, "name-revoke-tx",
-                 #{name_id => aec_base58c:encode(name, NameHash),
-                   fee     => Fee}).
-
 get_commitment_hash(Name, Salt) ->
     Host = external_address(),
     http_request(Host, get, "commitment-hash", [{name, Name}, {salt, Salt}]).
@@ -4718,10 +4715,6 @@ wrong_http_method_transactions(_Config) ->
 wrong_http_method_tx_id(_Config) ->
     Host = external_address(),
     {ok, 405, _} = http_request(Host, post, "tx/123", []).
-
-wrong_http_method_name_revoke_tx(_Config) ->
-    Host = internal_address(),
-    {ok, 405, _} = http_request(Host, get, "name-revoke-tx", []).
 
 wrong_http_method_commitment_hash(_Config) ->
     Host = external_address(),
