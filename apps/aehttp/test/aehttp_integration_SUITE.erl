@@ -122,10 +122,6 @@
     post_broken_tx/1,
     post_broken_base58_tx/1,
 
-    % balances
-    balance/1,
-    balance_negative_cases/1,
-
     % infos
     peer_pub_key/1
    ]).
@@ -179,7 +175,6 @@
     wrong_http_method_tx_id/1,
     wrong_http_method_commitment_hash/1,
     wrong_http_method_name/1,
-    wrong_http_method_balance/1,
     wrong_http_method_tx/1,
     wrong_http_method_node_pubkey/1,
     wrong_http_method_peers/1
@@ -445,10 +440,6 @@ groups() ->
         post_broken_tx,
         post_broken_base58_tx,
 
-        % balances
-        balance,
-        balance_negative_cases,
-
         % infos
         peer_pub_key
       ]},
@@ -486,7 +477,6 @@ groups() ->
         wrong_http_method_tx_id,
         wrong_http_method_commitment_hash,
         wrong_http_method_name,
-        wrong_http_method_balance,
         wrong_http_method_tx,
         wrong_http_method_node_pubkey,
         wrong_http_method_peers
@@ -1510,7 +1500,8 @@ get_contract(_Config) ->
     {ok, 404, #{<<"reason">> := <<"Tx not mined">>}} = get_contract_call_object(ContractCreateTxHash),
 
     {ok, 404, #{<<"reason">> := <<"Proof for contract not found">>}} = get_contract_poi(EncodedContractPubKey),
-    ?assertEqual({ok, 404, #{<<"reason">> => <<"Account not found">>}}, get_balance_at_top(EncodedContractPubKey)),
+    ?assertEqual({ok, 404, #{<<"reason">> => <<"Account not found">>}},
+                 get_accounts_by_pubkey_sut(EncodedContractPubKey)),
 
     % mine a block
     Fun1 = fun() -> tx_in_chain(ContractCreateTxHash) end,
@@ -1843,7 +1834,8 @@ contract_transactions(_Config) ->    % miner has an account
         get_contract_call_object(ContractCreateTxHash),
 
     {ok, 404, #{<<"reason">> := <<"Proof for contract not found">>}} = get_contract_poi(EncodedContractPubKey),
-    {ok, 404, #{<<"reason">> := <<"Account not found">>}} =  get_balance_at_top(EncodedContractPubKey),
+    {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
+        get_accounts_by_pubkey_sut(EncodedContractPubKey),
 
     % mine a block
     Fun1 = fun() -> tx_in_chain(ContractCreateTxHash) end,
@@ -1876,7 +1868,8 @@ contract_transactions(_Config) ->    % miner has an account
                                                          aec_trees:contracts(Trees)]),
 
     %% Assert the balance is the one which we created the contract with
-    {ok, 200, #{<<"balance">> := ContractInitBalance}} = get_balance_at_top(EncodedContractPubKey),
+    {ok, 200, #{<<"balance">> := ContractInitBalance}} =
+        get_accounts_by_pubkey_sut(EncodedContractPubKey),
     Function = <<"main">>,
     Argument = <<"42">>,
     {ok, EncodedCallData} =
@@ -2773,7 +2766,7 @@ pending_transactions(_Config) ->
     %{ok, SenderPubKey} = rpc:call(?NODE, aec_keys, pubkey, [], 5000),
     ReceiverPubKey = random_hash(),
     {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
-                  get_balance_at_top(aec_base58c:encode(account_pubkey, ReceiverPubKey)),
+                  get_accounts_by_pubkey_sut(aec_base58c:encode(account_pubkey, ReceiverPubKey)),
 
     {ok, 200, #{<<"tx">> := SpendTx}} =
         post_spend_tx(aec_base58c:encode(account_pubkey, ReceiverPubKey), AmountToSpent, Fee),
@@ -2790,7 +2783,7 @@ pending_transactions(_Config) ->
 
     {ok, 200, #{<<"balance">> := Bal0}} = get_balance_at_top(),
     {ok, 404, #{<<"reason">> := <<"Account not found">>}} =
-                  get_balance_at_top(aec_base58c:encode(account_pubkey, ReceiverPubKey)),
+                  get_accounts_by_pubkey_sut(aec_base58c:encode(account_pubkey, ReceiverPubKey)),
 
 
     aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE), 3),
@@ -2802,7 +2795,7 @@ pending_transactions(_Config) ->
            [Bal1, Bal0, 2 * MineReward, Fee, AmountToSpent]),
     {Bal1, _} = {Bal0 + 2 * MineReward + Fee - Fee - AmountToSpent, Bal1},
     {ok, 200, #{<<"balance">> := AmountToSpent}} =
-                 get_balance_at_top(aec_base58c:encode(account_pubkey, ReceiverPubKey)),
+                 get_accounts_by_pubkey_sut(aec_base58c:encode(account_pubkey, ReceiverPubKey)),
     ok.
 
 %% Even though a tx with a unknown sender pubkey would be accepted, we need
@@ -3345,7 +3338,8 @@ ws_oracles(_Config) ->
 %%
 assert_balance(Pubkey, ExpectedBalance) ->
     Address = aec_base58c:encode(account_pubkey, Pubkey),
-    {ok, 200, #{<<"balance">> := ExpectedBalance}} = get_balance_at_top(Address).
+    {ok, 200, #{<<"balance">> := ExpectedBalance}} =
+        get_accounts_by_pubkey_sut(Address).
 
 channel_sign_tx(ConnPid, Privkey, Tag) ->
     {ok, Tag, #{<<"tx">> := EncCreateTx}} = ?WS:wait_for_channel_event(ConnPid, sign),
@@ -3362,9 +3356,9 @@ sc_ws_open(Config) ->
       responder := #{pub_key := RPubkey}} = proplists:get_value(participants, Config),
 
     {ok, 200, #{<<"balance">> := IStartAmt}} =
-                 get_balance_at_top(aec_base58c:encode(account_pubkey, IPubkey)),
+                 get_accounts_by_pubkey_sut(aec_base58c:encode(account_pubkey, IPubkey)),
     {ok, 200, #{<<"balance">> := RStartAmt}} =
-                 get_balance_at_top(aec_base58c:encode(account_pubkey, RPubkey)),
+                 get_accounts_by_pubkey_sut(aec_base58c:encode(account_pubkey, RPubkey)),
     IAmt = 700,
     RAmt = 400,
 
@@ -3416,9 +3410,9 @@ channel_send_chan_open_infos(RConnPid, IConnPid) ->
 
 channel_participants_balances(IPubkey, RPubkey) ->
     {ok, 200, #{<<"balance">> := BalI}} =
-        get_balance_at_top(aec_base58c:encode(account_pubkey, IPubkey)),
+        get_accounts_by_pubkey_sut(aec_base58c:encode(account_pubkey, IPubkey)),
     {ok, 200, #{<<"balance">> := BalR}} =
-        get_balance_at_top(aec_base58c:encode(account_pubkey, RPubkey)),
+        get_accounts_by_pubkey_sut(aec_base58c:encode(account_pubkey, RPubkey)),
     {BalI, BalR}.
 
 channel_create(Config, IConnPid, RConnPid) ->
@@ -4236,87 +4230,6 @@ channel_options(IPubkey, RPubkey, IAmt, RAmt, Other) ->
                   channel_reserve => 2
                 }, Other).
 
-%% changing of another account's balance is checked in pending_transactions test
-balance(_Config) ->
-    ok = rpc(aec_conductor, reinit_chain, []),
-    % height 0, no account
-    {ok, 404, #{<<"reason">> := <<"Account not found">>}} = get_balance_at_top(),
-    % get to height 1
-    aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE), 1),
-    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_node_pubkey(),
-    lists:foreach(
-        fun(Height) ->
-            % get the balance at height=Height
-            {ok, 200, #{<<"balance">> := Bal}} = get_balance_at_top(),
-            % mine a block, move the top
-            aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE), 1),
-            % same balance at height=Height
-            {ok, 200, #{<<"balance">> := Bal}} = get_balance(EncodedPubKey,
-                                                             #{height => Height}),
-            {ok, HashStr} = block_hash_by_height(Height),
-            Hash = list_to_binary(HashStr),
-            % same balance by hash
-            {ok, 200, #{<<"balance">> := Bal}} = get_balance(EncodedPubKey,
-                                                             #{hash => Hash}),
-            % same balance by hash and height
-            {ok, 200, #{<<"balance">> := Bal}} = get_balance(EncodedPubKey,
-                                                             #{hash => Hash,
-                                                               height => Height}),
-            ok
-        end,
-        lists:seq(1, ?DEFAULT_TESTS_COUNT)),
-    {ok, Bal} = rpc(aec_mining, get_miner_account_balance, []),
-    {ok, 200, #{<<"balance">> := Bal}} = get_balance_at_top(),
-    {ok, 200, #{<<"balance">> := Bal}} = get_balance_at_top(EncodedPubKey),
-    ok.
-
-balance_negative_cases(_Config) ->
-    MaxHeight = aec_blocks:height(rpc(aec_chain, top_block, [])),
-    true = MaxHeight > 2,
-    % get a random height, where 0 < Height < MaxHeight
-    Height = rand:uniform(MaxHeight - 2) + 1,
-    {ok, HashStr} = block_hash_by_height(Height),
-    BlockHash = list_to_binary(HashStr),
-    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_node_pubkey(),
-
-    RandAccount = aec_base58c:encode(account_pubkey, random_hash()),
-    <<_, BrokenHash/binary>> = RandAccount,
-    TestAccHash =
-        fun(Code, ErrReson, H) ->
-            Res = {ok, Code, #{<<"reason">> => ErrReson}},
-            Res = get_balance_at_top(H),
-            Res = get_balance(H, #{height => Height}),
-            Res = get_balance(H, #{hash => BlockHash}),
-            Res = get_balance(H, #{height => Height,
-                                   hash => BlockHash})
-        end,
-    TestAccHash(400, <<"Invalid hash: address">>, BrokenHash),
-    TestAccHash(404, <<"Account not found">>, RandAccount),
-
-    % block in the future
-    {ok, 404, #{<<"reason">> := <<"Block not found">>}} =
-              get_balance(EncodedPubKey, #{height => MaxHeight + 1}),
-    % block in the future and valid block hash
-    {ok, 404, #{<<"reason">> := <<"Block not found">>}} =
-              get_balance(EncodedPubKey, #{height => MaxHeight + 1,
-                                           hash => BlockHash}),
-
-    % broken block hash
-    {ok, 400, #{<<"reason">> := <<"Invalid block hash">>}} =
-              get_balance(EncodedPubKey, #{hash => BrokenHash}),
-    % broken block hash and valid height
-    {ok, 400, #{<<"reason">> := <<"Invalid block hash">>}} =
-              get_balance(EncodedPubKey, #{hash => BrokenHash,
-                                           height => Height}),
-    % blocks mismatch
-    {ok, 400, #{<<"reason">> := <<"Invalid height and hash combination">>}} =
-              get_balance(EncodedPubKey, #{hash => BlockHash,
-                                           height => Height + 1}),
-    {ok, 200, #{<<"balance">> := _}} =
-              get_balance(EncodedPubKey, #{hash => BlockHash,
-                                           height => Height}),
-    ok.
-
 peers(_Config) ->
     rpc(application, set_env, [aehttp, enable_debug_endpoints, false]),
     {ok, 403, #{<<"reason">> := <<"Call not enabled">>}} = get_peers(),
@@ -4526,15 +4439,7 @@ get_name(Name) ->
 
 get_balance_at_top() ->
     {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_node_pubkey(),
-    get_balance_at_top(EncodedPubKey).
-
-get_balance_at_top(EncodedPubKey) ->
-    get_balance(EncodedPubKey, []).
-
-get_balance(EncodedPubKey, Params) ->
-    Host = external_address(),
-    http_request(Host, get, "account/" ++ binary_to_list(EncodedPubKey) ++ "/balance",
-                 Params).
+    get_accounts_by_pubkey_sut(EncodedPubKey).
 
 post_tx(TxSerialized) ->
     Host = external_address(),
@@ -4724,10 +4629,6 @@ wrong_http_method_name(_Config) ->
     Host = external_address(),
     {ok, 405, _} = http_request(Host, post, "name", []).
 
-wrong_http_method_balance(_Config) ->
-    Host = external_address(),
-    {ok, 405, _} = http_request(Host, post, "account/123/balance", []).
-
 wrong_http_method_tx(_Config) ->
     Host = external_address(),
     {ok, 405, _} = http_request(Host, get, "tx", []).
@@ -4857,13 +4758,6 @@ prepare_for_spending(BlocksToMine) ->
     {ok, PubKey} = rpc(aec_keys, pubkey, []),
     {ok, Nonce} = rpc(aec_next_nonce, pick_for_account, [PubKey]),
     {PubKey, Nonce}.
-
--spec block_hash_by_height(integer()) -> string().
-block_hash_by_height(Height) ->
-    {ok, B} = rpc(aec_chain, get_key_block_by_height, [Height]),
-    {ok, HBin} = aec_blocks:hash_internal_representation(B),
-    Hash = binary_to_list(aec_base58c:encode(block_hash, HBin)),
-    {ok, Hash}.
 
 add_spend_txs() ->
     MineReward = rpc(aec_governance, block_mine_reward, []),
