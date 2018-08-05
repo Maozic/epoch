@@ -136,7 +136,7 @@
 -export(
    [
     broken_spend_tx/1,
-    miner_pub_key/1,
+    node_pubkey/1,
 
     %% requested Endpoints
     naming_system_manage_name/1,
@@ -181,7 +181,7 @@
     wrong_http_method_name/1,
     wrong_http_method_balance/1,
     wrong_http_method_tx/1,
-    wrong_http_method_miner_pub_key/1,
+    wrong_http_method_node_pubkey/1,
     wrong_http_method_peers/1
     ]).
 
@@ -456,7 +456,7 @@ groups() ->
       [
         broken_spend_tx,
         naming_system_broken_txs,
-        miner_pub_key,
+        node_pubkey,
 
         % requested Endpoints
         peers
@@ -488,7 +488,7 @@ groups() ->
         wrong_http_method_name,
         wrong_http_method_balance,
         wrong_http_method_tx,
-        wrong_http_method_miner_pub_key,
+        wrong_http_method_node_pubkey,
         wrong_http_method_peers
      ]},
      {naming, [sequence],
@@ -1393,7 +1393,7 @@ post_spend_tx(Config) ->
     ok.
 
 post_contract_and_call_tx(_Config) ->
-    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_node_pubkey(),
     SophiaCode = <<"contract Identity = function main (x:int) = x">>,
     {ok, 200, #{<<"bytecode">> := Code}} = get_contract_bytecode(SophiaCode),
 
@@ -1469,7 +1469,7 @@ get_contract(_Config) ->
     aecore_suite_utils:mine_key_blocks(aecore_suite_utils:node_name(?NODE), 1),
 
     {ok, 200, _} = get_balance_at_top(),
-    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_node_pubkey(),
     {ok, MinerPubkey} = aec_base58c:safe_decode(account_pubkey, MinerAddress),
     SophiaCode = <<"contract Identity = function main (x:int) = x">>,
     {ok, 200, #{<<"bytecode">> := Code}} = get_contract_bytecode(SophiaCode),
@@ -1799,7 +1799,7 @@ save_config([], _Config, Acc) ->
 contract_transactions(_Config) ->    % miner has an account
     aecore_suite_utils:mine_key_blocks(aecore_suite_utils:node_name(?NODE), 1),
     {ok, 200, _} = get_balance_at_top(),
-    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_node_pubkey(),
     {ok, MinerPubkey} = aec_base58c:safe_decode(account_pubkey, MinerAddress),
     SophiaCode = <<"contract Identity = function main (x:int) = x">>,
     {ok, 200, #{<<"bytecode">> := Code}} = get_contract_bytecode(SophiaCode),
@@ -2062,7 +2062,7 @@ contract_transactions(_Config) ->    % miner has an account
 contract_create_transaction_init_error(_Config) ->
     % miner has an account
     {ok, 200, _} = get_balance_at_top(),
-    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_node_pubkey(),
     {ok, MinerPubkey} = aec_base58c:safe_decode(account_pubkey, MinerAddress),
 
     % contract_create_tx positive test
@@ -2125,7 +2125,7 @@ contract_create_transaction_init_error(_Config) ->
 
 oracle_transactions(_Config) ->
     {ok, 200, _} = get_balance_at_top(),
-    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_node_pubkey(),
     {ok, MinerPubkey} = aec_base58c:safe_decode(account_pubkey, MinerAddress),
     OracleAddress = aec_base58c:encode(oracle_pubkey, MinerPubkey),
 
@@ -2283,7 +2283,7 @@ oracle_transactions(_Config) ->
 %% GET revoke_tx unsigned transaction
 nameservice_transactions(_Config) ->
     {ok, 200, _} = get_balance_at_top(),
-    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_node_pubkey(),
     {ok, MinerPubkey} = aec_base58c:safe_decode(account_pubkey, MinerAddress),
     nameservice_transaction_preclaim(MinerAddress, MinerPubkey),
     nameservice_transaction_claim(MinerAddress, MinerPubkey),
@@ -2461,7 +2461,7 @@ nameservice_transaction_revoke(MinerAddress, MinerPubkey) ->
 %% GET channel_settle_tx unsigned transaction
 state_channels_onchain_transactions(_Config) ->
     {ok, 200, _} = get_balance_at_top(),
-    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_node_pubkey(),
     {ok, MinerPubkey} = aec_base58c:safe_decode(account_pubkey, MinerAddress),
     ParticipantPubkey = random_hash(),
     ok = give_tokens(ParticipantPubkey, 100),
@@ -2637,7 +2637,7 @@ state_channels_settle(ChannelId, MinerPubkey) ->
 %% GET spend_tx unsigned transaction
 spend_transaction(_Config) ->
     {ok, 200, _} = get_balance_at_top(),
-    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_node_pubkey(),
     {ok, MinerPubkey} = aec_base58c:safe_decode(account_pubkey, MinerAddress),
     RandAddress = random_hash(),
     Encoded = #{sender_id => MinerAddress,
@@ -2664,7 +2664,7 @@ spend_transaction(_Config) ->
 %% GET spend_tx unsigned transaction with an non-present key in request
 unknown_atom_in_spend_tx(_Config) ->
     {ok, 200, _} = get_balance_at_top(),
-    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := MinerAddress}} = get_node_pubkey(),
     RandAddress = random_hash(),
     Encoded = #{sender_id => MinerAddress,
                 recipient_id => aec_base58c:encode(account_pubkey, RandAddress),
@@ -2708,7 +2708,7 @@ unsigned_tx_positive_test(Data, Params0, HTTPCallFun, NewFun, Pubkey,
     {ok, Tx}.
 
 get_transaction(_Config) ->
-    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_node_pubkey(),
     aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE), 2),
     TxHashes = add_spend_txs(),
     aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE), 2),
@@ -2886,9 +2886,9 @@ broken_spend_tx(_Config) ->
                                    ForkHeight),
     ok.
 
-miner_pub_key(_Config) ->
+node_pubkey(_Config) ->
     {ok, MinerPubKey} = rpc(aec_keys, pubkey, []),
-    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_node_pubkey(),
     ct:log("MinerPubkey = ~p~nEncodedPubKey = ~p", [MinerPubKey,
                                                     EncodedPubKey]),
     {account_pubkey, MinerPubKey} = aec_base58c:decode(EncodedPubKey),
@@ -3238,7 +3238,7 @@ ws_tx_on_chain(_Config) ->
     ws_mine_key_block(ConnPid, ?NODE, 1),
 
     %% Fetch the pubkey via HTTP
-    {ok, 200, #{ <<"pub_key">> := PK }} = get_miner_pub_key(),
+    {ok, 200, #{ <<"pub_key">> := PK }} = get_node_pubkey(),
 
     %% Register an oracle
     RegisterData =
@@ -3274,7 +3274,7 @@ ws_oracles(_Config) ->
     ws_mine_key_block(ConnPid, ?NODE, 2),
 
     %% Fetch the pubkey via HTTP
-    {ok, 200, #{ <<"pub_key">> := PK }} = get_miner_pub_key(),
+    {ok, 200, #{ <<"pub_key">> := PK }} = get_node_pubkey(),
 
     %% The account is already an oracle from an earlier test case.
     {account_pubkey, ActualPK} = aec_base58c:decode(PK),
@@ -4243,7 +4243,7 @@ balance(_Config) ->
     {ok, 404, #{<<"reason">> := <<"Account not found">>}} = get_balance_at_top(),
     % get to height 1
     aecore_suite_utils:mine_blocks(aecore_suite_utils:node_name(?NODE), 1),
-    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_node_pubkey(),
     lists:foreach(
         fun(Height) ->
             % get the balance at height=Height
@@ -4277,7 +4277,7 @@ balance_negative_cases(_Config) ->
     Height = rand:uniform(MaxHeight - 2) + 1,
     {ok, HashStr} = block_hash_by_height(Height),
     BlockHash = list_to_binary(HashStr),
-    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_node_pubkey(),
 
     RandAccount = aec_base58c:encode(account_pubkey, random_hash()),
     <<_, BrokenHash/binary>> = RandAccount,
@@ -4525,7 +4525,7 @@ get_name(Name) ->
     http_request(Host, get, "name", [{name, Name}]).
 
 get_balance_at_top() ->
-    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_miner_pub_key(),
+    {ok, 200, #{<<"pub_key">> := EncodedPubKey}} = get_node_pubkey(),
     get_balance_at_top(EncodedPubKey).
 
 get_balance_at_top(EncodedPubKey) ->
@@ -4540,9 +4540,9 @@ post_tx(TxSerialized) ->
     Host = external_address(),
     http_request(Host, post, "tx", #{tx => TxSerialized}).
 
-get_miner_pub_key() ->
+get_node_pubkey() ->
     Host = internal_address(),
-    http_request(Host, get, "account/pub-key", []).
+    http_request(Host, get, "debug/accounts/node", []).
 
 get_peer_pub_key() ->
     Host = external_address(),
@@ -4732,9 +4732,9 @@ wrong_http_method_tx(_Config) ->
     Host = external_address(),
     {ok, 405, _} = http_request(Host, get, "tx", []).
 
-wrong_http_method_miner_pub_key(_Config) ->
+wrong_http_method_node_pubkey(_Config) ->
     Host = internal_address(),
-    {ok, 405, _} = http_request(Host, post, "account/pub-key", []).
+    {ok, 405, _} = http_request(Host, post, "debug/accounts/node", []).
 
 wrong_http_method_peers(_Config) ->
     Host = internal_address(),
