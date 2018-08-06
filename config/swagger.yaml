@@ -1521,13 +1521,13 @@ paths:
           schema:
             $ref: '#/definitions/Error'
 
-  /transactions:
+  /debug/transactions/pending:
     get:
       tags:
-        - external
+        - internal
         - transactions
-      operationId: GetTxs
-      description: 'Get transactions in the mempool'
+      operationId: GetPendingTransactions
+      description: 'Get pending transactions'
       produces:
         - application/json
       parameters:
@@ -1535,7 +1535,7 @@ paths:
         '200':
           description: 'Successful operation'
           schema:
-            $ref: '#/definitions/Transactions'
+            $ref: '#/definitions/GenericTxs'
   /debug/names/commitment-id:
     get:
       tags:
@@ -1950,10 +1950,6 @@ definitions:
     properties:
        tx:
          type: string
-  Transactions:
-    type: array
-    items:
-      $ref: '#/definitions/Tx'
   RegisteredOracle:
     type: object
     properties:
