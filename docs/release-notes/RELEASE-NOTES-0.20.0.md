@@ -3,6 +3,7 @@
 [This release][this-release] is focused on TODOFILLMEIN.
 It:
 * Removes the support for oracles in WS API. This functionality is going to be moved to the middleware.
+* Caps the gas operand of the `CALL` opcode in the VM with the available machine gas before performing the inner call. This impacts consensus.
 
 [this-release]: https://github.com/aeternity/epoch/releases/tag/v0.20.0
 
