@@ -1722,8 +1722,7 @@ get_status_sut() ->
 
 prepare_tx(TxType, Args) ->
     %assert_required_tx_fields(TxType, Args),
-    Host = external_address(),
-    Path = tx_object_http_path(TxType),
+    {Host, Path} = tx_object_http_path(TxType),
     {ok, 200, #{<<"tx">> := EncodedSerializedUnsignedTx}} = http_request(Host, post, Path, Args),
     {ok, SerializedUnsignedTx} = aec_base58c:safe_decode(transaction, EncodedSerializedUnsignedTx),
     UnsignedTx = aetx:deserialize_from_binary(SerializedUnsignedTx),
@@ -1748,11 +1747,11 @@ post_tx(TxHash, Tx) ->
 %    [account, query_format, response_format, query_fee, fee, oracle_ttl].
 
 %% TODO: use /debug/* when available
-tx_object_http_path(spend_tx) -> "tx/spend";
-tx_object_http_path(oracle_register_tx) -> "tx/oracle/register";
-tx_object_http_path(oracle_extend_tx) -> "tx/oracle/extend";
-tx_object_http_path(oracle_query_tx) -> "tx/oracle/query";
-tx_object_http_path(oracle_response_tx) -> "tx/oracle/response".
+tx_object_http_path(spend_tx) -> {internal_address(), "debug/transactions/spend"};
+tx_object_http_path(oracle_register_tx) -> {external_address(), "tx/oracle/register"};
+tx_object_http_path(oracle_extend_tx) -> {external_address(), "tx/oracle/extend"};
+tx_object_http_path(oracle_query_tx) -> {external_address(), "tx/oracle/query"};
+tx_object_http_path(oracle_response_tx) -> {external_address(), "tx/oracle/response"}.
 
 hash(Block) ->
     {ok, Hash0} = aec_blocks:hash_internal_representation(Block),
@@ -2737,7 +2736,7 @@ get_transaction(_Config) ->
 %% Maybe this test should be broken into a couple of smaller tests
 %% it currently tests the positive cases for
 %% GET externalAPI/transactions
-%% POST externalAPI/tx/spend
+%% POST internalAPI/debug/transactions/spend
 %% GET externalAPI/account/balance
 pending_transactions(_Config) ->
     {ok, []} = rpc(aec_tx_pool, peek, [infinity]), % empty
@@ -4330,8 +4329,8 @@ get_contract_decode_data(Request) ->
     http_request(Host, post, "contract/decode-data", Request).
 
 get_spend(Data) ->
-    Host = external_address(),
-    http_request(Host, post, "tx/spend", Data).
+    Host = internal_address(),
+    http_request(Host, post, "debug/transactions/spend", Data).
 
 get_oracle_register(Data) ->
     Host = external_address(),
@@ -4415,8 +4414,8 @@ post_spend_tx(RecipientId, Amount, Fee) ->
     post_spend_tx(SenderId, RecipientId, Amount, Fee, <<"foo">>).
 
 post_spend_tx(SenderId, RecipientId, Amount, Fee, Payload) ->
-    Host = external_address(),
-    http_request(Host, post, "tx/spend",
+    Host = internal_address(),
+    http_request(Host, post, "debug/transactions/spend",
                  #{sender_id => SenderId,
                    recipient_id => RecipientId,
                    amount => Amount,
@@ -4452,8 +4451,8 @@ get_contract_poi(ContractAddress) ->
 %% ============================================================
 
 swagger_validation_body(_Config) ->
-    Host = external_address(),
-    URL = binary_to_list(iolist_to_binary([Host, "/v2/tx/spend"])),
+    Host = internal_address(),
+    URL = binary_to_list(iolist_to_binary([Host, "/v2/debug/transactions/spend"])),
     Type = "application/json",
     Body = <<"{broken_json">>,
 
@@ -4490,7 +4489,7 @@ swagger_validation_body(_Config) ->
 %%    ok.
 
 swagger_validation_schema(_Config) ->
-    Host = external_address(),
+    Host = internal_address(),
     {ok, 400, #{
             <<"reason">> := <<"validation_error">>,
             <<"parameter">> := <<"body">>,
@@ -4498,7 +4497,7 @@ swagger_validation_schema(_Config) ->
                         <<"data">> := <<"wrong_fee_data">>,
                         <<"error">> := <<"wrong_type">>,
                         <<"path">> := [<<"fee">>]
-        }}} = http_request(Host, post, "tx/spend", #{
+        }}} = http_request(Host, post, "debug/transactions/spend", #{
                    recipient_id => <<"">>,
                    amount => 0,
                    fee => <<"wrong_fee_data">>,
@@ -4511,7 +4510,7 @@ swagger_validation_schema(_Config) ->
                         <<"data">> := <<"recipient_id">>,
                         <<"error">> := <<"missing_required_property">>,
                         <<"path">> := []
-        }}} = http_request(Host, post, "tx/spend", #{
+        }}} = http_request(Host, post, "debug/transactions/spend", #{
                    amount => 0,
                    fee => <<"fee">>,
                    ttl => 100,
@@ -4523,7 +4522,7 @@ swagger_validation_schema(_Config) ->
                         <<"data">> := -1,
                         <<"error">> := <<"not_in_range">>,
                         <<"path">> := [<<"amount">>]
-        }}} = http_request(Host, post, "tx/spend", #{
+        }}} = http_request(Host, post, "debug/transactions/spend", #{
                    recipient_id => <<"">>,
                    amount => -1,
                    fee => <<"fee">>,
@@ -4565,8 +4564,8 @@ wrong_http_method_contract_call_compute(_Config) ->
     {ok, 405, _} = http_request(Host, get, "tx/contract/call/compute", []).
 
 wrong_http_method_spend(_Config) ->
-    Host = external_address(),
-    {ok, 405, _} = http_request(Host, get, "tx/spend", []).
+    Host = internal_address(),
+    {ok, 405, _} = http_request(Host, get, "debug/transactions/spend", []).
 
 wrong_http_method_oracle_register(_Config) ->
     Host = external_address(),
