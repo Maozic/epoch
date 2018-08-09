@@ -4389,8 +4389,8 @@ get_channel_close_mutual(Data) ->
     http_request(Host, post, "debug/channels/close/mutual", Data).
 
 get_channel_close_solo(Data) ->
-    Host = external_address(),
-    http_request(Host, post, "tx/channel/close/solo", Data).
+    Host = internal_address(),
+    http_request(Host, post, "debug/channels/close/solo", Data).
 
 get_channel_slash(Data) ->
     Host = external_address(),
