@@ -2,7 +2,7 @@
 
 [This release][this-release] is focused on TODOFILLMEIN.
 It:
-* Does this.
+* Adds http API interface `/tx/contract/create/compute` for creating contracts.
 
 [this-release]: https://github.com/aeternity/epoch/releases/tag/v0.20.0
 
